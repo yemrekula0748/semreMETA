@@ -220,6 +220,25 @@ class MetaApiService
     }
 
     /**
+     * Token sahibinin bilgilerini getirir (Instagram user token için)
+     */
+    public function getMeAsInstagramUser(string $accessToken): ?array
+    {
+        try {
+            $response = $this->client->get('/me', [
+                'query' => [
+                    'fields' => 'id,name,username,profile_picture_url',
+                    'access_token' => $accessToken,
+                ],
+            ]);
+            return json_decode($response->getBody()->getContents(), true);
+        } catch (GuzzleException $e) {
+            Log::error('Meta getMeAsInstagramUser error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Sayfayı webhook'a subscribe eder
      */
     public function subscribeToWebhook(string $pageId, string $pageAccessToken): bool

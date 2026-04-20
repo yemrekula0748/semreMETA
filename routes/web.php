@@ -48,6 +48,7 @@ Route::middleware(['auth'])->group(function () {
         Route::middleware('can:manage_accounts')->group(function () {
             Route::get('/connect', [InstagramAccountController::class, 'connect'])->name('connect');
             Route::get('/callback', [InstagramAccountController::class, 'callback'])->name('callback');
+            Route::post('/manual', [InstagramAccountController::class, 'manualConnect'])->name('manual');
             Route::patch('/{account}/disconnect', [InstagramAccountController::class, 'disconnect'])->name('disconnect');
             Route::patch('/{account}/activate', [InstagramAccountController::class, 'activate'])->name('activate');
             Route::delete('/{account}', [InstagramAccountController::class, 'destroy'])->name('destroy');

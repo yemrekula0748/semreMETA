@@ -4,11 +4,11 @@
 
 @section('header-actions')
     @can('manage_accounts')
-    <a href="{{ route('accounts.connect') }}"
-       class="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm">
+    <button onclick="document.getElementById('manualModal').classList.remove('hidden')"
+            class="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        Hesap Bağla
-    </a>
+        Hesap Ekle
+    </button>
     @endcan
 @endsection
 
@@ -21,8 +21,12 @@
         <div class="flex gap-3">
             <svg class="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <div>
-                <p class="font-semibold">Hesap Nasıl Bağlanır?</p>
-                <p class="mt-1 text-blue-700">"Hesap Bağla" butonuna tıklayarak Facebook oturumunузla giriş yapın. Instagram Business hesabınızın bağlı olduğu Facebook sayfasına erişim verin. Sistem otomatik olarak Instagram hesabınızı bulacaktır.</p>
+                <p class="font-semibold">Hesap Nasıl Eklenir?</p>
+                <p class="mt-1 text-blue-700">
+                    <a href="https://developers.facebook.com/tools/explorer" target="_blank" class="underline font-medium">Graph API Explorer</a>'a git →
+                    Uygulamanı seç → İzinlere <code class="bg-blue-100 px-1 rounded">instagram_manage_messages</code> ve <code class="bg-blue-100 px-1 rounded">pages_messaging</code> ekle →
+                    "Generate Access Token" → Token'ı kopyalayıp buraya yapıştır.
+                </p>
             </div>
         </div>
     </div>
@@ -112,4 +116,47 @@
         </div>
     @endif
 </div>
+
+@can('manage_accounts')
+{{-- Manuel Token ile Hesap Ekle Modal --}}
+<div id="manualModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <h3 class="font-semibold text-gray-900">Instagram Hesabı Ekle</h3>
+            <button onclick="document.getElementById('manualModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <form action="{{ route('accounts.manual') }}" method="POST" class="p-6 space-y-4">
+            @csrf
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+                <strong>Token nasıl alınır?</strong><br>
+                1. <a href="https://developers.facebook.com/tools/explorer" target="_blank" class="underline">Graph API Explorer</a> aç<br>
+                2. Sağ üstten uygulamanı seç (SemrePanel)<br>
+                3. İzin ekle: <code class="bg-amber-100 px-1 rounded">instagram_manage_messages</code>, <code class="bg-amber-100 px-1 rounded">pages_messaging</code>, <code class="bg-amber-100 px-1 rounded">pages_manage_metadata</code><br>
+                4. "Generate Access Token" → Kopyala → Buraya yapıştır
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Hesap Adı <span class="text-gray-400 font-normal">(isteğe bağlı)</span></label>
+                <input type="text" name="account_name" placeholder="Örn: Mağaza Hesabım"
+                       class="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Access Token</label>
+                <textarea name="access_token" required rows="3" placeholder="Graph API Explorer'dan kopyaladığın token..."
+                          class="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono resize-none"></textarea>
+            </div>
+            <div class="flex gap-3 pt-1">
+                <button type="button" onclick="document.getElementById('manualModal').classList.add('hidden')"
+                        class="flex-1 border border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition">
+                    İptal
+                </button>
+                <button type="submit" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-xl text-sm font-medium transition">
+                    Hesabı Ekle
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+@endcan
 @endsection
