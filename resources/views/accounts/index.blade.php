@@ -4,11 +4,11 @@
 
 @section('header-actions')
     @can('manage_accounts')
-    <button onclick="document.getElementById('manualModal').classList.remove('hidden')"
-            class="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm">
+    <a href="{{ route('accounts.connect') }}"
+       class="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
         Hesap Ekle
-    </button>
+    </a>
     @endcan
 @endsection
 
@@ -23,9 +23,7 @@
             <div>
                 <p class="font-semibold">Hesap Nasıl Eklenir?</p>
                 <p class="mt-1 text-blue-700">
-                    <a href="https://developers.facebook.com/tools/explorer" target="_blank" class="underline font-medium">Graph API Explorer</a>'a git →
-                    Uygulamanı seç → İzinlere <code class="bg-blue-100 px-1 rounded">instagram_manage_messages</code> ve <code class="bg-blue-100 px-1 rounded">pages_messaging</code> ekle →
-                    "Generate Access Token" → Token'ı kopyalayıp buraya yapıştır.
+                    "Hesap Ekle" butonuna tıkla → Facebook'ta oturum aç → Instagram Business hesabına bağlı sayfayı seç → İzinleri onayla → Otomatik bağlanır.
                 </p>
             </div>
         </div>
@@ -37,10 +35,10 @@
             <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg>
             <p class="text-gray-500 font-medium">Henüz Instagram hesabı bağlanmamış</p>
             @can('manage_accounts')
-            <button onclick="document.getElementById('manualModal').classList.remove('hidden')"
-                    class="mt-4 inline-flex items-center gap-2 bg-purple-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-purple-700 transition">
+            <a href="{{ route('accounts.connect') }}"
+               class="mt-4 inline-flex items-center gap-2 bg-purple-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-purple-700 transition">
                 İlk Hesabı Bağla
-            </button>
+            </a>
             @endcan
         </div>
     @else
