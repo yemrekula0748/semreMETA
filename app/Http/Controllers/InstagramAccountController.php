@@ -181,15 +181,75 @@ class InstagramAccountController extends Controller
         $result = $this->instagrapi->login($data['ig_username'], $data['ig_password']);
 
         if (!$result || isset($result['error'])) {
+            $error = $result['error'] ?? 'Instagram girişi başarısız oldu.';
+
+            // Challenge gerekiyor — kullanıcı adını session'a yaz, challenge modal göster
+            if (str_starts_with($error, 'CHALLENGE_REQUIRED')) {
+                session(['ig_challenge_username' => $data['ig_username']]);
+                return redirect()->route('accounts.index')
+                    ->with('challenge_required', $data['ig_username'])
+                    ->with('error', '⚠️ Instagram güvenlik doğrulaması istedi. Instagram uygulamanızda "Şüpheli Giriş" / "Bu Benim" bildirimini onaylayın VEYA e-posta/SMS kodunu aşağıya girin.');
+            }
+
             return redirect()->route('accounts.index')
-                ->with('error', $result['error'] ?? 'Instagram girişi başarısız oldu.');
+                ->with('error', $error);
         }
 
+        return $this->saveIgAccount($result, $data['ig_username']);
+    }
+
+    public function igChallengeResolve(Request $request)
+    {
+        $data = $request->validate([
+            'ig_username' => ['required', 'string', 'max:100'],
+            'challenge_code' => ['required', 'string', 'max:20'],
+        ]);
+
+        $result = $this->instagrapi->challengeResolve($data['ig_username'], $data['challenge_code']);
+
+        if (!$result || isset($result['error'])) {
+            session(['ig_challenge_username' => $data['ig_username']]);
+            return redirect()->route('accounts.index')
+                ->with('challenge_required', $data['ig_username'])
+                ->with('error', 'Kod doğrulaması başarısız: ' . ($result['error'] ?? 'Bilinmeyen hata'));
+        }
+
+        session()->forget('ig_challenge_username');
+        return $this->saveIgAccount($result, $data['ig_username']);
+    }
+
+    public function igRetryAfterApproval(Request $request)
+    {
+        $data = $request->validate([
+            'ig_username' => ['required', 'string', 'max:100'],
+            'ig_password' => ['required', 'string'],
+        ]);
+
+        // Önceki session ayarlarıyla tekrar dene
+        $result = $this->instagrapi->login($data['ig_username'], $data['ig_password']);
+
+        if (!$result || isset($result['error'])) {
+            $error = $result['error'] ?? 'Giriş başarısız.';
+            if (str_starts_with($error, 'CHALLENGE_REQUIRED')) {
+                session(['ig_challenge_username' => $data['ig_username']]);
+                return redirect()->route('accounts.index')
+                    ->with('challenge_required', $data['ig_username'])
+                    ->with('error', 'Hâlâ doğrulama bekleniyor. Instagram uygulamasından "Bu Benim" seçeneğine bastınız mı?');
+            }
+            return redirect()->route('accounts.index')->with('error', $error);
+        }
+
+        session()->forget('ig_challenge_username');
+        return $this->saveIgAccount($result, $data['ig_username']);
+    }
+
+    private function saveIgAccount(array $result, string $igUsername)
+    {
         InstagramAccount::updateOrCreate(
             ['instagram_user_id' => $result['user_id']],
             [
-                'name'                => $result['full_name'] ?? $data['ig_username'],
-                'username'            => $result['username'] ?? $data['ig_username'],
+                'name'                => $result['full_name'] ?? $igUsername,
+                'username'            => $result['username'] ?? $igUsername,
                 'page_id'             => null,
                 'access_token'        => 'instagrapi_session',
                 'profile_picture_url' => $result['profile_pic_url'] ?? null,

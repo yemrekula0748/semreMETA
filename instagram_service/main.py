@@ -9,11 +9,12 @@ from pydantic import BaseModel
 from instagrapi import Client
 from instagrapi.exceptions import (
     LoginRequired, TwoFactorRequired, ChallengeRequired,
-    BadPassword, InvalidMediaId, UserNotFound
+    BadPassword, InvalidMediaId, UserNotFound, ReloginAttemptExceeded
 )
 from typing import Optional
 import json, os, logging
 from datetime import datetime
+from json import JSONDecodeError
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -26,6 +27,9 @@ os.makedirs(SESSIONS_DIR, exist_ok=True)
 
 # Bellekte aktif client'ları tut (restart'ta session dosyasından yüklenir)
 clients: dict[str, Client] = {}
+
+# Challenge bekleyen hesaplar: username -> Client (challenge resolve için)
+pending_challenges: dict[str, Client] = {}
 
 
 def verify_api_key(x_api_key: str = Header(...)):
@@ -70,6 +74,11 @@ class LoginRequest(BaseModel):
     verification_code: Optional[str] = None  # 2FA için
 
 
+class ChallengeResolveRequest(BaseModel):
+    username: str
+    code: str
+
+
 class SendMessageRequest(BaseModel):
     ig_username: str  # hangi hesaptan gönderileceği
     thread_id: str
@@ -95,6 +104,14 @@ def login(req: LoginRequest, _=Depends(verify_api_key)):
     cl = Client()
     session_file = get_session_file(req.username)
 
+    # Challenge çözme callback'i — kod memory'de saklanır
+    def challenge_code_handler(username: str, choice) -> str:
+        logger.info(f"Challenge kodu bekleniyor: {username}, seçenek: {choice}")
+        # Kodu dışarıdan sağlamak için exception fırlat
+        raise ChallengeRequired()
+
+    cl.challenge_code_handler = challenge_code_handler
+
     try:
         # Varolan session'ı dene
         if os.path.exists(session_file):
@@ -103,6 +120,8 @@ def login(req: LoginRequest, _=Depends(verify_api_key)):
         cl.login(req.username, req.password)
         cl.dump_settings(session_file)
         clients[req.username] = cl
+        # Başarılı giriş — bekleyen challenge'ı temizle
+        pending_challenges.pop(req.username, None)
 
         try:
             user = cl.user_info_by_username(req.username)
@@ -124,18 +143,81 @@ def login(req: LoginRequest, _=Depends(verify_api_key)):
     except TwoFactorRequired:
         raise HTTPException(
             status_code=400,
-            detail="2FA_REQUIRED: Bu hesapta iki faktörlü doğrulama aktif. Instagram ayarlarından geçici olarak devre dışı bırakın veya uygulama şifresi oluşturun."
+            detail="2FA_REQUIRED: Bu hesapta iki faktörlü doğrulama aktif. Instagram ayarlarından geçici olarak devre dışı bırakın, sonra tekrar deneyin."
         )
-    except ChallengeRequired:
+    except (ChallengeRequired, JSONDecodeError) as e:
+        # Challenge gerekli — client'ı bekleyen listesine al
+        pending_challenges[req.username] = cl
+        logger.warning(f"Challenge gerekli ({req.username}): {type(e).__name__}: {e}")
         raise HTTPException(
             status_code=400,
-            detail="CHALLENGE_REQUIRED: Instagram şüpheli giriş tespit etti. Instagram mobil uygulamasından hesabınızı doğrulayın, sonra tekrar deneyin."
+            detail=(
+                "CHALLENGE_REQUIRED: Instagram bu girişi doğrulamanızı istiyor. "
+                "Lütfen Instagram mobil uygulamanızı açın ve 'Şüpheli Giriş' "
+                "veya 'Giriş Doğrulama' bildirimini onaylayın. "
+                "Ardından /challenge/send endpoint'i ile SMS/email kodu isteyin "
+                "ve /challenge/resolve ile kodu gönderin."
+            )
         )
     except BadPassword:
         raise HTTPException(status_code=400, detail="Kullanıcı adı veya şifre hatalı.")
+    except ReloginAttemptExceeded:
+        # Session sil, tekrar giriş dene
+        if os.path.exists(session_file):
+            os.remove(session_file)
+        raise HTTPException(status_code=400, detail="Çok fazla tekrar giriş denemesi. Session temizlendi, tekrar deneyin.")
     except Exception as e:
-        logger.error(f"Login hatası ({req.username}): {e}")
+        logger.error(f"Login hatası ({req.username}): {type(e).__name__}: {e}")
         raise HTTPException(status_code=400, detail=f"Giriş yapılamadı: {str(e)}")
+
+
+@app.post("/challenge/send")
+def challenge_send(username: str, _=Depends(verify_api_key)):
+    """Challenge için SMS/Email kodu gönder."""
+    if username not in pending_challenges:
+        raise HTTPException(status_code=404, detail="Bu kullanıcı için bekleyen challenge bulunamadı. Önce giriş deneyin.")
+    cl = pending_challenges[username]
+    try:
+        # instagrapi challenge_send_code metodu
+        cl.challenge_send_code(cl.last_json)
+        return {"success": True, "message": "Doğrulama kodu gönderildi. E-posta veya SMS'inizi kontrol edin."}
+    except Exception as e:
+        logger.error(f"Challenge send hatası ({username}): {e}")
+        raise HTTPException(status_code=400, detail=f"Kod gönderilirken hata: {str(e)}")
+
+
+@app.post("/challenge/resolve")
+def challenge_resolve(req: ChallengeResolveRequest, _=Depends(verify_api_key)):
+    """Challenge kodunu doğrula ve girişi tamamla."""
+    if req.username not in pending_challenges:
+        raise HTTPException(status_code=404, detail="Bu kullanıcı için bekleyen challenge bulunamadı. Önce giriş deneyin.")
+    cl = pending_challenges[req.username]
+    session_file = get_session_file(req.username)
+    try:
+        cl.challenge_resolve(req.code)
+        cl.dump_settings(session_file)
+        clients[req.username] = cl
+        pending_challenges.pop(req.username, None)
+
+        try:
+            user = cl.user_info_by_username(req.username)
+            profile_pic = str(user.profile_pic_url) if user.profile_pic_url else None
+            full_name = user.full_name or req.username
+        except Exception:
+            profile_pic = None
+            full_name = req.username
+
+        logger.info(f"Challenge çözüldü, giriş başarılı: {req.username}")
+        return {
+            "success": True,
+            "user_id": str(cl.user_id),
+            "username": cl.username or req.username,
+            "full_name": full_name,
+            "profile_pic_url": profile_pic,
+        }
+    except Exception as e:
+        logger.error(f"Challenge resolve hatası ({req.username}): {e}")
+        raise HTTPException(status_code=400, detail=f"Kod doğrulaması başarısız: {str(e)}")
 
 
 @app.delete("/logout/{ig_username}")

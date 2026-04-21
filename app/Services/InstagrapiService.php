@@ -114,6 +114,46 @@ class InstagrapiService
     }
 
     /**
+     * Challenge kodu iste (SMS/email).
+     */
+    public function challengeSend(string $username): array
+    {
+        try {
+            $response = $this->client->post('/challenge/send', [
+                'query' => ['username' => $username],
+                'headers' => $this->headers(),
+            ]);
+            return json_decode($response->getBody()->getContents(), true);
+        } catch (ClientException $e) {
+            $body = json_decode($e->getResponse()->getBody()->getContents(), true);
+            return ['error' => $body['detail'] ?? 'Kod gönderilemedi.'];
+        } catch (\Exception $e) {
+            Log::error('InstagrapiService::challengeSend error: ' . $e->getMessage());
+            return ['error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Challenge kodunu doğrula ve girişi tamamla.
+     */
+    public function challengeResolve(string $username, string $code): array
+    {
+        try {
+            $response = $this->client->post('/challenge/resolve', [
+                'json' => ['username' => $username, 'code' => $code],
+                'headers' => $this->headers(),
+            ]);
+            return json_decode($response->getBody()->getContents(), true);
+        } catch (ClientException $e) {
+            $body = json_decode($e->getResponse()->getBody()->getContents(), true);
+            return ['error' => $body['detail'] ?? 'Kod doğrulaması başarısız.'];
+        } catch (\Exception $e) {
+            Log::error('InstagrapiService::challengeResolve error: ' . $e->getMessage());
+            return ['error' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Servisin çalışıp çalışmadığını kontrol et.
      */
     public function isAvailable(): bool

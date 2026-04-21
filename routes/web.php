@@ -50,6 +50,8 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/callback', [InstagramAccountController::class, 'callback'])->name('callback');
             Route::post('/manual', [InstagramAccountController::class, 'manualConnect'])->name('manual');
             Route::post('/ig-login', [InstagramAccountController::class, 'igLogin'])->name('ig-login');
+            Route::post('/ig-challenge-resolve', [InstagramAccountController::class, 'igChallengeResolve'])->name('ig-challenge-resolve');
+            Route::post('/ig-retry-after-approval', [InstagramAccountController::class, 'igRetryAfterApproval'])->name('ig-retry-after-approval');
             Route::patch('/{account}/disconnect', [InstagramAccountController::class, 'disconnect'])->name('disconnect');
             Route::patch('/{account}/activate', [InstagramAccountController::class, 'activate'])->name('activate');
             Route::delete('/{account}', [InstagramAccountController::class, 'destroy'])->name('destroy');

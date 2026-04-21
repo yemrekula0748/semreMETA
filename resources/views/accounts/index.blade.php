@@ -158,5 +158,61 @@
         </form>
     </div>
 </div>
+
+{{-- Challenge / Güvenlik Doğrulama Modalı --}}
+<div id="igChallengeModal" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div class="flex items-center gap-2">
+                <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                <h3 class="font-semibold text-gray-900">Instagram Güvenlik Doğrulaması</h3>
+            </div>
+        </div>
+        <div class="p-6 space-y-4">
+            <div class="bg-orange-50 border border-orange-200 rounded-xl p-4 text-sm text-orange-800 space-y-2">
+                <p class="font-semibold">📱 Instagram hesabınızı doğrulamanız gerekiyor.</p>
+                <p>İki seçeneğiniz var:</p>
+                <ol class="list-decimal list-inside space-y-1 text-orange-700 mt-1">
+                    <li>Instagram mobil uygulamasını açın → <strong>"Şüpheli Giriş / Bu Benim"</strong> bildirimini onaylayın → aşağıdan <strong>"Onayladım, Tekrar Dene"</strong> butonuna basın</li>
+                    <li>E-posta/SMS'inize gelen <strong>doğrulama kodunu</strong> aşağıya girin</li>
+                </ol>
+            </div>
+
+            {{-- Seçenek 1: Uygulamadan onaylayıp tekrar dene --}}
+            <form action="{{ route('accounts.ig-retry-after-approval') }}" method="POST" class="space-y-3 border border-gray-200 rounded-xl p-4">
+                @csrf
+                <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Seçenek 1 — Uygulamadan Onayladım</p>
+                <input type="hidden" name="ig_username" value="{{ session('ig_challenge_username', '') }}">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Şifre</label>
+                    <input type="password" name="ig_password" required placeholder="Instagram şifreniz"
+                           class="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                </div>
+                <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-xl text-sm font-medium transition">
+                    ✅ Onayladım, Tekrar Dene
+                </button>
+            </form>
+
+            {{-- Seçenek 2: Kod gir --}}
+            <form action="{{ route('accounts.ig-challenge-resolve') }}" method="POST" class="space-y-3 border border-gray-200 rounded-xl p-4">
+                @csrf
+                <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Seçenek 2 — Doğrulama Kodu</p>
+                <input type="hidden" name="ig_username" value="{{ session('ig_challenge_username', '') }}">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">E-posta / SMS Kodu</label>
+                    <input type="text" name="challenge_code" required placeholder="123456" maxlength="10"
+                           class="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-center tracking-widest text-lg font-mono">
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-sm font-medium transition">
+                    Kodu Doğrula
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
 @endcan
+
+@if(session('challenge_required'))
+<script>document.addEventListener('DOMContentLoaded', () => document.getElementById('igChallengeModal').classList.remove('hidden'));</script>
+@endif
 @endsection
