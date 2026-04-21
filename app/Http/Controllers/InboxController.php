@@ -6,6 +6,7 @@ use App\Models\Conversation;
 use App\Models\InstagramAccount;
 use App\Models\Message;
 use App\Services\MetaApiService;
+use App\Services\InstagrapiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -13,7 +14,10 @@ use Illuminate\Support\Facades\Storage;
 
 class InboxController extends Controller
 {
-    public function __construct(private MetaApiService $metaApi) {}
+    public function __construct(
+        private MetaApiService $metaApi,
+        private InstagrapiService $instagrapi,
+    ) {}
 
     private function getAccessibleAccounts()
     {
@@ -40,6 +44,11 @@ class InboxController extends Controller
         $accountId = $request->get('account', $accounts->first()->id);
         $selectedAccount = $accounts->find($accountId) ?? $accounts->first();
 
+        // instagrapi hesapları için thread'leri DB'ye senkronize et
+        if ($selectedAccount->service_type === 'instagrapi') {
+            $this->syncInstagrapiThreads($selectedAccount);
+        }
+
         $conversations = Conversation::where('instagram_account_id', $selectedAccount->id)
             ->orderByDesc('last_message_at')
             ->get();
@@ -52,6 +61,38 @@ class InboxController extends Controller
         ]);
     }
 
+    /**
+     * instagrapi servisinden thread'leri çekip Conversations tablosuna yazar.
+     */
+    private function syncInstagrapiThreads(InstagramAccount $account): void
+    {
+        $threads = $this->instagrapi->getThreads($account->username);
+
+        foreach ($threads as $thread) {
+            $otherUser = $thread['users'][0] ?? null;
+            if (!$otherUser) continue;
+
+            $lastAt = $thread['last_activity']
+                ? \Carbon\Carbon::parse($thread['last_activity'])
+                : now();
+
+            Conversation::updateOrCreate(
+                [
+                    'instagram_account_id' => $account->id,
+                    'ig_conversation_id'   => $thread['id'],
+                ],
+                [
+                    'participant_ig_id'      => $otherUser['pk'],
+                    'participant_username'   => $otherUser['username'],
+                    'participant_name'       => $otherUser['full_name'] ?? $otherUser['username'],
+                    'participant_pic'        => $otherUser['profile_pic_url'] ?? null,
+                    'last_message_at'        => $lastAt,
+                    'unread_count'           => $thread['unread_count'] ?? 0,
+                ]
+            );
+        }
+    }
+
     public function show(Request $request, Conversation $conversation)
     {
         $accounts = $this->getAccessibleAccounts();
@@ -61,13 +102,18 @@ class InboxController extends Controller
             abort(403);
         }
 
+        $selectedAccount = $accounts->find($conversation->instagram_account_id);
+
+        // instagrapi hesapları için mesajları DB'ye senkronize et
+        if ($selectedAccount->service_type === 'instagrapi') {
+            $this->syncInstagrapiMessages($conversation, $selectedAccount);
+        }
+
         // Okunmamış mesajları okundu yap
         $conversation->messages()->where('is_read', false)->where('is_outgoing', false)->update(['is_read' => true]);
         $conversation->update(['unread_count' => 0]);
 
         $messages = $conversation->messages()->orderBy('sent_at')->get();
-
-        $selectedAccount = $accounts->find($conversation->instagram_account_id);
 
         $conversations = Conversation::where('instagram_account_id', $selectedAccount->id)
             ->orderByDesc('last_message_at')
@@ -80,6 +126,33 @@ class InboxController extends Controller
             'selectedConversation' => $conversation,
             'messages' => $messages,
         ]);
+    }
+
+    /**
+     * instagrapi servisinden mesajları çekip Messages tablosuna yazar.
+     */
+    private function syncInstagrapiMessages(Conversation $conversation, InstagramAccount $account): void
+    {
+        $messages = $this->instagrapi->getMessages($account->username, $conversation->ig_conversation_id);
+
+        foreach ($messages as $msg) {
+            $ts = $msg['timestamp'] ? \Carbon\Carbon::parse($msg['timestamp']) : now();
+
+            Message::updateOrCreate(
+                ['meta_message_id' => $msg['id']],
+                [
+                    'conversation_id' => $conversation->id,
+                    'from_ig_id'      => $msg['is_outgoing'] ? $account->instagram_user_id : $conversation->participant_ig_id,
+                    'to_ig_id'        => $msg['is_outgoing'] ? $conversation->participant_ig_id : $account->instagram_user_id,
+                    'message_text'    => $msg['text'] ?: null,
+                    'message_type'    => in_array($msg['item_type'], ['text', 'image', 'video']) ? $msg['item_type'] : 'text',
+                    'media_url'       => $msg['media_url'] ?? null,
+                    'is_outgoing'     => $msg['is_outgoing'],
+                    'is_read'         => $msg['is_outgoing'],
+                    'sent_at'         => $ts,
+                ]
+            );
+        }
     }
 
     public function sendMessage(Request $request, Conversation $conversation)
@@ -97,7 +170,36 @@ class InboxController extends Controller
         $account = $conversation->instagramAccount;
         $recipientId = $conversation->participant_ig_id;
 
+        // instagrapi hesabı ise Python servisi üzerinden gönder
+        if ($account->service_type === 'instagrapi') {
+            // Meta API hesabı (resmi)
         if ($request->hasFile('image')) {
+                return back()->with('error', 'instagrapi ile resim gönderme henüz desteklenmiyor. Lütfen metin mesajı gönderin.');
+            }
+
+            $text = $request->input('message');
+            $result = $this->instagrapi->sendMessage($account->username, $conversation->ig_conversation_id, $text);
+
+            if (!$result) {
+                return back()->with('error', 'Mesaj gönderilemedi.');
+            }
+
+            Message::create([
+                'conversation_id' => $conversation->id,
+                'meta_message_id' => $result['message_id'] ?? ('ig_' . uniqid()),
+                'from_ig_id'      => $account->instagram_user_id,
+                'to_ig_id'        => $recipientId,
+                'message_text'    => $text,
+                'message_type'    => 'text',
+                'media_url'       => null,
+                'is_outgoing'     => true,
+                'is_read'         => true,
+                'sent_at'         => now(),
+            ]);
+
+            $conversation->update(['last_message_at' => now()]);
+            return redirect()->route('inbox.show', $conversation);
+        }
             $file = $request->file('image');
             $path = $file->store('uploads/messages', 'public');
             $publicUrl = Storage::disk('public')->url($path);
@@ -153,6 +255,13 @@ class InboxController extends Controller
         $accounts = $this->getAccessibleAccounts();
         if (!$accounts->pluck('id')->contains($conversation->instagram_account_id)) {
             abort(403);
+        }
+
+        $selectedAccount = $accounts->find($conversation->instagram_account_id);
+
+        // instagrapi hesapları için polling sırasında da senkronize et
+        if ($selectedAccount->service_type === 'instagrapi') {
+            $this->syncInstagrapiMessages($conversation, $selectedAccount);
         }
 
         $since = $request->get('since');

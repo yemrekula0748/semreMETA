@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('user_instagram_accounts')) {
+            return; // Tablo zaten mevcut
+        }
+
         Schema::create('user_instagram_accounts', function (Blueprint $table) {
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->foreignId('instagram_account_id')->constrained()->onDelete('cascade');

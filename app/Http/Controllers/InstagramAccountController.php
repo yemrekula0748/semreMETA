@@ -4,12 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\InstagramAccount;
 use App\Services\MetaApiService;
+use App\Services\InstagrapiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class InstagramAccountController extends Controller
 {
-    public function __construct(private MetaApiService $metaApi) {}
+    public function __construct(
+        private MetaApiService $metaApi,
+        private InstagrapiService $instagrapi,
+    ) {}
 
     public function index()
     {
@@ -165,6 +169,37 @@ class InstagramAccountController extends Controller
 
         return redirect()->route('accounts.index')
             ->with('success', "{$connected} Instagram hesabı başarıyla eklendi.");
+    }
+
+    public function igLogin(Request $request)
+    {
+        $data = $request->validate([
+            'ig_username' => ['required', 'string', 'max:100'],
+            'ig_password' => ['required', 'string'],
+        ]);
+
+        $result = $this->instagrapi->login($data['ig_username'], $data['ig_password']);
+
+        if (!$result || isset($result['error'])) {
+            return redirect()->route('accounts.index')
+                ->with('error', $result['error'] ?? 'Instagram girişi başarısız oldu.');
+        }
+
+        InstagramAccount::updateOrCreate(
+            ['instagram_user_id' => $result['user_id']],
+            [
+                'name'                => $result['full_name'] ?? $data['ig_username'],
+                'username'            => $result['username'] ?? $data['ig_username'],
+                'page_id'             => null,
+                'access_token'        => 'instagrapi_session',
+                'profile_picture_url' => $result['profile_pic_url'] ?? null,
+                'is_active'           => true,
+                'service_type'        => 'instagrapi',
+            ]
+        );
+
+        return redirect()->route('accounts.index')
+            ->with('success', "@{$result['username']} hesabı başarıyla bağlandı.");
     }
 
     public function disconnect(InstagramAccount $account)

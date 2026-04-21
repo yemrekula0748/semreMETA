@@ -4,11 +4,11 @@
 
 @section('header-actions')
     @can('manage_accounts')
-    <a href="{{ route('accounts.connect') }}"
-       class="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm">
+    <button onclick="document.getElementById('igLoginModal').classList.remove('hidden')"
+            class="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
         Hesap Ekle
-    </a>
+    </button>
     @endcan
 @endsection
 
@@ -35,10 +35,10 @@
             <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg>
             <p class="text-gray-500 font-medium">Henüz Instagram hesabı bağlanmamış</p>
             @can('manage_accounts')
-            <a href="{{ route('accounts.connect') }}"
-               class="mt-4 inline-flex items-center gap-2 bg-purple-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-purple-700 transition">
+            <button onclick="document.getElementById('igLoginModal').classList.remove('hidden')"
+                    class="mt-4 inline-flex items-center gap-2 bg-purple-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-purple-700 transition">
                 İlk Hesabı Bağla
-            </a>
+            </button>
             @endcan
         </div>
     @else
@@ -117,41 +117,42 @@
 </div>
 
 @can('manage_accounts')
-{{-- Manuel Token ile Hesap Ekle Modal --}}
-<div id="manualModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl">
+{{-- Instagram Giriş Modalı --}}
+<div id="igLoginModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-            <h3 class="font-semibold text-gray-900">Instagram Hesabı Ekle</h3>
-            <button onclick="document.getElementById('manualModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">
+            <div class="flex items-center gap-2">
+                <svg class="w-5 h-5 text-purple-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg>
+                <h3 class="font-semibold text-gray-900">Instagram Hesabı Ekle</h3>
+            </div>
+            <button onclick="document.getElementById('igLoginModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
         </div>
-        <form action="{{ route('accounts.manual') }}" method="POST" class="p-6 space-y-4">
+        <form action="{{ route('accounts.ig-login') }}" method="POST" class="p-6 space-y-4">
             @csrf
             <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
-                <strong>Token nasıl alınır?</strong><br>
-                1. <a href="https://developers.facebook.com/tools/explorer" target="_blank" class="underline">Graph API Explorer</a> aç<br>
-                2. Sağ üstten uygulamanı seç (SemrePanel)<br>
-                3. İzin ekle: <code class="bg-amber-100 px-1 rounded">instagram_manage_messages</code>, <code class="bg-amber-100 px-1 rounded">pages_messaging</code>, <code class="bg-amber-100 px-1 rounded">pages_manage_metadata</code><br>
-                4. "Generate Access Token" → Kopyala → Buraya yapıştır
+                <strong>Not:</strong> Hesabınıza sunucumuz üzerinden giriş yapılır. Instagram'dan şüpheli giriş bildirimi gelebilir — onaylayın. 2FA aktifse geçici olarak kapatın.
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1.5">Hesap Adı <span class="text-gray-400 font-normal">(isteğe bağlı)</span></label>
-                <input type="text" name="account_name" placeholder="Örn: Mağaza Hesabım"
-                       class="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Instagram Kullanıcı Adı</label>
+                <input type="text" name="ig_username" required placeholder="kullanici_adi"
+                       class="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                       autocomplete="off">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1.5">Access Token</label>
-                <textarea name="access_token" required rows="3" placeholder="Graph API Explorer'dan kopyaladığın token..."
-                          class="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono resize-none"></textarea>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Şifre</label>
+                <input type="password" name="ig_password" required placeholder="••••••••"
+                       class="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                       autocomplete="new-password">
             </div>
             <div class="flex gap-3 pt-1">
-                <button type="button" onclick="document.getElementById('manualModal').classList.add('hidden')"
+                <button type="button" onclick="document.getElementById('igLoginModal').classList.add('hidden')"
                         class="flex-1 border border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition">
                     İptal
                 </button>
-                <button type="submit" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-xl text-sm font-medium transition">
-                    Hesabı Ekle
+                <button type="submit" class="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 text-white py-2.5 rounded-xl text-sm font-medium transition">
+                    Bağlan
                 </button>
             </div>
         </form>

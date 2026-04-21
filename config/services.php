@@ -42,4 +42,9 @@ return [
         'api_version' => env('META_API_VERSION', 'v19.0'),
     ],
 
+    'instagrapi' => [
+        'url' => env('INSTAGRAPI_URL', 'http://127.0.0.1:8765'),
+        'api_key' => env('INSTAGRAPI_API_KEY', 'semremeta_ig_2024'),
+    ],
+
 ];

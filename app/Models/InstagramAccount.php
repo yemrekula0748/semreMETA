@@ -16,6 +16,7 @@ class InstagramAccount extends Model
         'access_token',
         'profile_picture_url',
         'is_active',
+        'service_type',
     ];
 
     protected $casts = [
